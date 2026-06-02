@@ -81,42 +81,65 @@ async def register_page_handler(request: Request):
             url_prefix = "/" + url_prefix
         url_prefix = url_prefix.rstrip("/")
         personal_url = f"{forwarded_proto}://{host}{url_prefix}/mcp/?token={token}"
+        register_url = f"{url_prefix}/register"
 
         return HTMLResponse(
-            f"""
-            <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 40px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                <h2 style="color: #2c3e50;">Registration Successful</h2>
-                <p>Use the following URL in your MCP client (any MCP agent):</p>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; word-break: break-all; font-family: monospace; border: 1px solid #eee; margin: 10px 0;">
-{personal_url}
-                </div>
-                <p style="color: #666; font-size: 0.9em; margin-top: 20px;">
-                    Token expires in 30 days — re-visit this page to generate a new one.<br>
-                    Survives server restarts — no re-registration needed.
-                </p>
-                <a href="/register" style="display: inline-block; margin-top: 10px; color: #3498db; text-decoration: none;">&larr; Register another key</a>
-            </div>
-        """
+            f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registration Successful</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f1a; color: #e8edf5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+.card {{ background: #131827; border: 1px solid #1f2b40; border-radius: 14px; padding: 2rem; max-width: 560px; width: 90%; }}
+h2 {{ font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem; }}
+p {{ font-size: 0.85rem; color: #8898b4; line-height: 1.5; }}
+.url-box {{ background: #1a2236; border: 1px solid #1f2b40; border-radius: 8px; padding: 0.85rem; font-family: monospace; font-size: 0.78rem; word-break: break-all; margin: 0.85rem 0; color: #e8edf5; }}
+.note {{ font-size: 0.78rem; color: #5c6f8c; margin-top: 1rem; }}
+a {{ color: #3b82f6; text-decoration: none; font-size: 0.82rem; }}
+a:hover {{ text-decoration: underline; }}
+</style></head><body>
+<div class="card">
+<h2>Registration Successful</h2>
+<p>Use the following URL in your MCP client (any MCP agent):</p>
+<div class="url-box">{personal_url}</div>
+<p class="note">Token expires in 30 days. Revisit this page to generate a new one. Survives server restarts.</p>
+<a href="{register_url}">&larr; Register another key</a>
+</div>
+</body></html>"""
         )
 
     return HTMLResponse(
-        """
-        <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 40px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="color: #2c3e50;">Data Tagger MCP Registration</h2>
-            <p style="color: #666;">Enter your API token to generate a personal MCP session URL.</p>
-            <form method="post">
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">API Token:</label>
-                    <input type="password" name="api_key" placeholder="Paste your token here" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Data Tagger Base URL:</label>
-                    <input type="text" name="base_url" value="https://datatagger.ub.tum.de" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-                </div>
-                <button type="submit" style="background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-size: 1em; width: 100%;">Generate MCP URL</button>
-            </form>
-        </div>
-    """
+        f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataTagger MCP Registration</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f1a; color: #e8edf5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+.card {{ background: #131827; border: 1px solid #1f2b40; border-radius: 14px; padding: 2rem; max-width: 480px; width: 90%; }}
+h2 {{ font-size: 1.15rem; font-weight: 700; margin-bottom: 0.3rem; }}
+p {{ font-size: 0.85rem; color: #8898b4; margin-bottom: 1.25rem; }}
+label {{ display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.3rem; color: #8898b4; }}
+input {{ width: 100%; padding: 0.6rem 0.75rem; background: #1a2236; border: 1px solid #1f2b40; border-radius: 8px; color: #e8edf5; font-size: 0.9rem; margin-bottom: 0.85rem; outline: none; }}
+input:focus {{ border-color: #3b82f6; }}
+button {{ width: 100%; padding: 0.6rem; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }}
+button:hover {{ opacity: 0.9; }}
+a {{ color: #3b82f6; text-decoration: none; font-size: 0.82rem; }}
+a:hover {{ text-decoration: underline; }}
+</style></head><body>
+<div class="card">
+<h2>DataTagger MCP Registration</h2>
+<p>Enter your API token to generate a personal MCP session URL.</p>
+<form method="post">
+<label>API Token</label>
+<input type="password" name="api_key" placeholder="Paste your token here" required>
+<label>Data Tagger Base URL</label>
+<input type="text" name="base_url" value="https://datatagger.ub.tum.de">
+<button type="submit">Generate MCP URL</button>
+</form>
+</div>
+</body></html>"""
     )
 
 
