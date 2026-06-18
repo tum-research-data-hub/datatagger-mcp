@@ -1,37 +1,17 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = [
-    "setuptools >= 77",
-    "wheel",
-]
+requires = ["setuptools >= 77", "wheel"]
 
 [project]
 dependencies = [
     "mcp[cli]>=1.2.0",
     "httpx>=0.28.0",
-    "uvicorn>=0.30.0",
-    "starlette>=0.37.0"
 ]
-description = "An MCP server for Data Tagger"
 name = "datatagger-mcp"
+description = "An MCP server for TUM DataTagger (local/stdio mode)"
 readme = "README.md"
 requires-python = ">=3.10"
 version = "0.1.0"
 
 [project.scripts]
 datatagger-mcp = "datatagger_mcp.__main__:main"
-
-[tool.ruff]
-line-length = 88
-
-[tool.ruff.lint]
-select = ["E", "F", "B", "I", "D"]
-ignore = [
-    "D107",  # Missing docstring in __init__
-    "D203",  # 1 blank line required before class docstring
-    "D213",  # Multi-line docstring summary should start at the second line
-]
-
-[tool.ruff.lint.isort]
-lines-after-imports = 2
-known-first-party = ["datatagger_mcp"]
