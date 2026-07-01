@@ -173,10 +173,18 @@ async def download_fdm_file(
         return f"Error downloading file: {e}"
 
 
-async def upload_fdm_file(
+async def upload_fdm_file_tus(
     endpoint: str, file_path: str, ctx: Optional[Context] = None
 ) -> str:
-    """Upload a local file to the FDM API endpoint as multipart form data."""
+    """Upload a local file to the FDM API using TUS resumable upload protocol.
+
+    The TUS protocol (POST to /tus/ + PATCH to /tus/{id}/) is the upload method
+    used by the DataTagger web UI. Unlike the legacy multipart POST to /file/,
+    TUS correctly finalises the dataset so it appears in the folder (is_published=True).
+    """
+    import base64
+    import mimetypes
+
     if not os.path.exists(file_path):
         return f"Error: File not found exactly at {file_path}."
 
@@ -185,34 +193,74 @@ async def upload_fdm_file(
     except ValueError as e:
         return str(e)
 
-    url = f"{base_url}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
+    api_base = base_url.rstrip("/") + "/api/v1"
+    upload_endpoint = endpoint.lstrip("/")
+    # Strip /api/v1/ prefix if present (some callers include it)
+    if upload_endpoint.startswith("api/v1/"):
+        upload_endpoint = upload_endpoint[7:]
+    if not upload_endpoint.startswith("uploads-dataset/"):
+        return f"Error: TUS upload requires an uploads-dataset endpoint, got: {endpoint}"
+    # Extract dataset_id from endpoint like "uploads-dataset/{dataset_id}/file/"
+    ds_id = upload_endpoint.split("/")[1]
+
+    filename = os.path.basename(file_path)
+    file_size = os.path.getsize(file_path)
+    fname_b64 = base64.b64encode(filename.encode()).decode()
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+    ftype_b64 = base64.b64encode(mime_type.encode()).decode()
+
     headers = {
         "User-Agent": USER_AGENT,
-        "Accept": "application/json",
         "Authorization": f"Bearer {token}",
     }
 
     try:
-        filename = os.path.basename(file_path)
-        mime_type, _ = mimetypes.guess_type(file_path)
-        if not mime_type:
-            mime_type = "application/octet-stream"
-
         async with httpx.AsyncClient() as client:
-            with open(file_path, "rb") as f:
-                files = {"file": (filename, f, mime_type)}
-                response = await client.post(
-                    url, headers=headers, files=files, timeout=600.0
-                )
-                response.raise_for_status()
-                content_type = response.headers.get("content-type", "")
-                if "json" in content_type.lower():
-                    import json
+            # Step 1: POST to /tus/ to initialise the upload
+            tus_init_headers = {
+                **headers,
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": str(file_size),
+                "Upload-Metadata": f"filename {fname_b64},filetype {ftype_b64}",
+            }
+            init_resp = await client.post(
+                f"{api_base}/uploads-dataset/{ds_id}/tus/",
+                headers=tus_init_headers,
+                timeout=30.0,
+            )
+            init_resp.raise_for_status()
 
-                    return json.dumps(response.json(), indent=2)
-                return response.text
+            location = init_resp.headers.get("Location", "")
+            if not location:
+                return "Error: TUS init returned no Location header."
+
+            tus_url = location
+            if tus_url.startswith("/"):
+                tus_url = f"{base_url.rstrip('/')}{tus_url}"
+
+            # Step 2: PATCH to the TUS URL with the raw file data
+            with open(file_path, "rb") as f:
+                file_data = f.read()
+
+            patch_headers = {
+                **headers,
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0",
+                "Content-Type": "application/offset+octet-stream",
+            }
+            patch_resp = await client.patch(
+                tus_url,
+                headers=patch_headers,
+                content=file_data,
+                timeout=600.0,
+            )
+            patch_resp.raise_for_status()
+
+            return f"File uploaded successfully via TUS: {filename} (dataset {ds_id})"
     except Exception as e:
-        return f"Error uploading file: {e}"
+        return f"Error uploading file via TUS: {e}"
 
 
 # --- SECTION: SEARCH ---
@@ -512,8 +560,12 @@ async def download_version_file(
 async def upload_dataset_file(
     dataset_id: str, source_path: str, ctx: Optional[Context] = None
 ) -> str:
-    """Upload a raw file from your local computer into a dataset."""
-    return await upload_fdm_file(
+    """Upload a raw file from your local computer into a dataset.
+
+    Uses the TUS resumable upload protocol (same as the DataTagger web UI)
+    so the dataset is properly finalised and visible in the folder.
+    """
+    return await upload_fdm_file_tus(
         f"/api/v1/uploads-dataset/{dataset_id}/file/", source_path, ctx=ctx
     )
 
