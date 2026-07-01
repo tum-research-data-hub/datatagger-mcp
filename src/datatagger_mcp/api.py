@@ -419,10 +419,16 @@ async def list_datasets(
 
 @mcp.tool()
 async def create_dataset(
-    folder_id: str, name: str, ctx: Optional[Context] = None
+    name: str, folder_id: Optional[str] = None, ctx: Optional[Context] = None
 ) -> str:
-    """Create a new dataset entry inside a folder."""
-    payload = {"folder": folder_id, "name": name}
+    """Create a new dataset entry.
+    
+    - With folder_id: creates a dataset inside that folder (appears under projects/.../folders/.../files/)
+    - Without folder_id: creates a free-standing dataset (appears under /drafts/...)
+    """
+    payload = {"name": name}
+    if folder_id:
+        payload["folder"] = folder_id
     return format_json_response(
         await make_fdm_request(
             "/api/v1/uploads-dataset/", method="POST", json_payload=payload, ctx=ctx

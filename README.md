@@ -23,7 +23,30 @@ For the server/proxy layer, see [unified-researchdata-mcp](https://github.com/ha
 - `get_folder_permissions` / `set_folder_permissions`
 - `add_metadata_to_dataset` / `list_metadata`
 
+> **`create_dataset`** supports two modes — pass `folder_id` to place the dataset inside a folder
+> (appears under `/projects/.../folders/.../files/`), or omit it to create a free-standing draft
+> (appears under `/drafts/...`). See [Upload modes](#upload-modes) below.
+
 > Destructive operations (`delete_*`) require `confirm_danger=True`.
+
+## Upload modes
+
+The DataTagger API uses a single mechanism — **datasets** (`uploads-dataset`) — for both free-standing drafts and folder-bound uploads. The difference is whether the dataset has a `folder` reference:
+
+| Mode | `folder_id` | API payload | Appears at |
+|---|---|---|---|
+| **Draft** | omitted / `None` | `{"name": "..."}` | `/drafts/{dataset_id}` |
+| **Folder upload** | folder UUID | `{"name": "...", "folder": "..."}` | `/projects/{pid}/folders/{fid}/files/{file_id}` |
+
+**Example workflow — Folder upload:**
+
+1. `create_dataset(name="my-data", folder_id="<folder-uuid>")` → dataset inside the folder
+2. `upload_dataset_file(dataset_id="<ds-uuid>", source_path="/path/to/file")` → file lands in the folder
+
+**Example workflow — Draft upload:**
+
+1. `create_dataset(name="my-draft")` → free-standing dataset (no folder)
+2. `upload_dataset_file(dataset_id="<ds-uuid>", source_path="/path/to/file")` → file appears under `/drafts/`
 
 ## Usage
 
