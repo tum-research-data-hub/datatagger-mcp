@@ -8,20 +8,23 @@ For the server/proxy layer, see [unified-researchdata-mcp](https://github.com/ha
 
 23 MCP tools for DataTagger, logically grouped:
 
-### Read (7 tools)
+### Read (9 tools)
 - `search_datatagger` — Global search across projects, folders, datasets
 - `list_projects` / `get_project` — Browse and retrieve projects
 - `list_folders` / `get_folder` — Browse and retrieve folders
 - `list_datasets` — List datasets inside folders
+- `download_version_file` — Stream a dataset version file to a local path
+- `get_folder_permissions` — List the folder's user permissions
+- `list_metadata` — List available metadata template mappings
 
-### Write (16 tools)
+### Write (14 tools)
 - `create_project` / `update_project` / `delete_project`
 - `create_folder` / `update_folder` / `delete_folder`
 - `create_dataset` / `delete_dataset`
 - `publish_dataset` / `restore_dataset_version` / `compare_dataset_versions`
-- `upload_dataset_file` / `download_fdm_file`
-- `get_folder_permissions` / `set_folder_permissions`
-- `add_metadata_to_dataset` / `list_metadata`
+- `upload_dataset_file`
+- `set_folder_permissions`
+- `add_metadata_to_dataset`
 
 > **`create_dataset`** supports two modes — pass `folder_id` to place the dataset inside a folder
 > (appears under `/projects/.../folders/.../files/`), or omit it to create a free-standing draft
@@ -55,15 +58,20 @@ The DataTagger API uses a single mechanism — **datasets** (`uploads-dataset`) 
 ```python
 from datatagger_mcp.api import mcp
 
-# Set credentials on the FastMCP instance
-mcp.state.api_key = "your-token"
-mcp.state.base_url = "https://datatagger.ub.tum.de"
+# Credentials are resolved per call, in this order:
+#   1. the ContextVars session_key_var / session_base_url_var (hosted proxy)
+#   2. the legacy SESSION_AUTH store of the stdio session
+#   3. the FDM_TOKEN / FDM_BASE_URL environment variables
+import os
+os.environ["FDM_TOKEN"] = "your-token"
+os.environ["FDM_BASE_URL"] = "https://datatagger.ub.tum.de"
 
 # List tools
-tools = await mcp.list_tools()
+tools = await mcp.list_tools()          # -> list[MCPTool], use .input_schema
 
 # Call a tool
 result = await mcp.call_tool("search_datatagger", {"term": "example", "limit": 5})
+print(result.content[0].text)           # -> CallToolResult
 ```
 
 ### As a local MCP client (STDIO)
@@ -93,8 +101,31 @@ pip install -e .
 
 ## Dependencies
 
-- `mcp[cli]>=1.2.0`
-- `httpx>=0.28.0`
+- `mcp[cli]>=2.2.0,<3` — MCP Python SDK v2, speaks protocol revision **2026-07-28**
+  (stateless core) and still serves every older revision from the same server
+- `httpx>=0.28.0` — used for the DataTagger REST/TUS calls (independent of the
+  SDK's own HTTP client)
+
+## Streamable HTTP (opt-in)
+
+The library is stdio-first, but the same server object can be served over the
+stateless Streamable-HTTP transport (no `Mcp-Session-Id`, every request
+self-describing — any request may land on any replica):
+
+```bash
+datatagger-mcp --transport streamable-http --host 0.0.0.0 --port 8000
+# --stateful for the legacy session-based mode, --json-response to skip SSE
+```
+
+Programmatically:
+
+```python
+from datatagger_mcp.api import build_http_app
+app = build_http_app(stateless=True)   # Starlette ASGI app, endpoint /mcp
+```
+
+`TransportSecuritySettings` (DNS-rebinding guard) applies to this transport
+only; the allowed hosts live in `datatagger_mcp.api.ALLOWED_HOSTS`.
 
 ## Server / Proxy
 

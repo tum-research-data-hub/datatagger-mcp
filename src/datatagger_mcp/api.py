@@ -9,25 +9,66 @@ from contextlib import asynccontextmanager
 
 import httpx
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from mcp.server.transport_security import TransportSecuritySettings
 
 from . import USER_AGENT
 from .jwt_token import encode_token, decode_token
 
-# --- FastMCP Instance ---
-mcp = FastMCP(
-    "datatagger",
-    stateless_http=True,
-    transport_security=TransportSecuritySettings(
-        allowed_hosts=[
-            "datatagger-mcp.duckdns.org",
-            "researchmcp.duckdns.org",
-            "localhost",
-            "127.0.0.1",
-        ]
-    ),
-)
+SERVER_NAME = "datatagger"
+SERVER_VERSION = "0.1.0"
+
+# Hostnames accepted by the DNS-rebinding guard when this library itself serves
+# HTTP. The guard matches the Host header exactly, so every name is listed both
+# bare (proxied requests without a port) and with a port wildcard.
+# The hosted deployment sits behind its own ingress instead.
+_ALLOWED_HOSTNAMES = [
+    "datatagger-mcp.duckdns.org",
+    "researchmcp.duckdns.org",
+    "econversion.duckdns.org",
+    # the everse landing hosts that also route /dt to the proxy
+    "researchdata.e-conversion.de",
+    "econverse.e-conversion.de",
+    "localhost",
+    "127.0.0.1",
+    "[::1]",
+]
+ALLOWED_HOSTS = [host for name in _ALLOWED_HOSTNAMES for host in (name, f"{name}:*")]
+
+# --- MCP server instance ---
+# MCPServer is the MCP Python SDK v2 name for v1's FastMCP. Transport options
+# (stateless_http, transport_security, host, port) are no longer constructor
+# arguments — they belong to run()/streamable_http_app(), see build_http_app().
+mcp = MCPServer(SERVER_NAME, version=SERVER_VERSION)
+
+
+def transport_security_settings() -> TransportSecuritySettings:
+    """DNS-rebinding guard for the Streamable-HTTP transport."""
+    return TransportSecuritySettings(allowed_hosts=list(ALLOWED_HOSTS))
+
+
+def build_http_app(
+    *,
+    stateless: bool = True,
+    host: str = "127.0.0.1",
+    path: str = "/mcp",
+    json_response: bool = False,
+):
+    """ASGI app serving Streamable HTTP (MCP 2025-11-25 and 2026-07-28).
+
+    stateless=True (default) is the 2026-07-28 mode: no session id, every
+    request self-describing, any request can hit any replica behind a plain
+    round-robin load balancer. Legacy clients using the initialize handshake
+    are served from the same app without configuration.
+    """
+    return mcp.streamable_http_app(
+        streamable_http_path=path,
+        json_response=json_response,
+        stateless_http=stateless,
+        host=host,
+        transport_security=transport_security_settings(),
+    )
 
 # --- Session & Global Config ---
 session_key_var: ContextVar[Optional[str]] = ContextVar("session_key", default=None)
@@ -36,11 +77,15 @@ SESSION_AUTH: Dict[str, Dict[str, str]] = {}
 
 
 def get_session_id(ctx: Optional[Context]) -> Optional[str]:
-    """Extract session ID from the MCP context if available."""
+    """Extract session ID from the MCP context if available.
+
+    Stateless (2026-07-28) requests carry no session at all — returns None.
+    """
     if not ctx:
         return None
     try:
-        return str(id(ctx.request_context.session))
+        session = ctx.session
+        return str(id(session)) if session is not None else None
     except Exception:
         return None
 
@@ -532,12 +577,11 @@ async def compare_dataset_versions(
     version_id: str, compare_to_id: str, ctx: Optional[Context] = None
 ) -> str:
     """Get the diff/comparison between two dataset versions."""
-    payload = {"compare": compare_to_id}
     return format_json_response(
         await make_fdm_request(
             f"/api/v1/uploads-version/{version_id}/diff/",
-            method="POST",
-            json_payload=payload,
+            method="GET",
+            params={"compare": compare_to_id},
             ctx=ctx,
         )
     )
