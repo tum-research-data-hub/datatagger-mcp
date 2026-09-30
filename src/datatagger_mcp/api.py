@@ -27,9 +27,9 @@ _ALLOWED_HOSTNAMES = [
     "datatagger-mcp.duckdns.org",
     "researchmcp.duckdns.org",
     "econversion.duckdns.org",
-    # the everse landing hosts that also route /dt to the proxy
+    # the landing hosts that also route /dt to the proxy; the chat host
+    # atlas.e-conversion.de does not, the reverse proxy in front does the check
     "researchdata.e-conversion.de",
-    "econverse.e-conversion.de",
     "localhost",
     "127.0.0.1",
     "[::1]",
