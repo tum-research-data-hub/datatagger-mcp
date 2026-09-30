@@ -135,3 +135,7 @@ multi-user support, web UI) lives in a separate repository:
 → [harrytyp/unified-researchdata-mcp](https://github.com/harrytyp/unified-researchdata-mcp)
 
 The server imports this library via `from datatagger_mcp.api import mcp as mcp_server`.
+
+## License
+
+MIT, see `LICENSE`.
